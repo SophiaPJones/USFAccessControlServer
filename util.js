@@ -33,3 +33,8 @@ export function formatDate(date) {
         date.getMinutes().toString().padStart(2, '0')+":"+
         date.getSeconds().toString().padStart(2, '0'));
 }
+export function formatDate2(date) {
+    return (date.getHours().toString().padStart(2, '0')+":"+
+        date.getMinutes().toString().padStart(2, '0')+":"+
+        date.getSeconds().toString().padStart(2, '0'));
+}

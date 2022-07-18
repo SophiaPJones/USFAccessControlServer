@@ -221,68 +221,126 @@ router.createUser('/createUser', util.authCheck(), function(req, res){
 //removeUser from accesslist
 router.post('/removeUser', util.authCheck(), (req, res) => {
   if(req.body.UNum){
-    
+    var uNum = req.body.UNum;
+    db.removeUser(uNum)
+    .then(res.send({"error": "", "code": 200}))
+    .catch((err) => {
+      console.log("Error calling /removeUser endpoint.");
+      console.log(err);
+      res.send({"error":err, "code": 223})
+    })
   }
   else{
     res.status(403).send({"error": "Invalid parameters submitted to /removeUser endpoint.\nRequires 'UNum' parameter", code: 222});
   }
 });
+
 //GrantedAccess
-router.post('/grantaccess/:scannerid/:unum', async (req, res) => {
-  const unum = req.params.unum;
-  const scannerid  = req.params.scannerid;
-  const { err, reqs } = await AccessLists.getvalue(unum,  scannerid);      
-  if(CreateRoom.RoomID = CreateScanner.RoomID) {
-    res.send(reqs)
-  } else {
-    console.error(err);
-    res.send(err);
+router.post('/grantAccess', util.authCheck(), (req, res) => {
+  if(req.body.UNum && req.body.RoomNum && req.body.Building){
+    var unum = req.body.UNum;
+    var roomNum = req.body.RoomNum;
+    var building = req.body.Building;
+    db.grantAccess(unum, roomNum, building)
+    .then(res.send({"error": "", "code": 200}))
+    .catch((err) => {
+      console.log("Error calling /grantAccess endpoint.");
+      console.log(err);
+      res.send({"error": err, "code": 225});
+    })
+  }
+  else{
+    res.status(403).send({"error": "Invalid parameters submitted to /grantAccess endpoint.\nRequires 'UNum', 'RoomNum', 'Building' parameters", code: 224});
   }
 });
 //revokeAccess
-router.delete('/revoke/:scannerid', (req, res) => {
-  const revoke = getUserIndex(req.params.scannerid)
-  if (scannerid=== -1) return res.status(404).json({})
-  AccessLists.splice(revoke, 1)
-  res.json(AccessLists)
+router.post('/revokeAccess', (req, res) => {
+  if(req.body.UNum && req.body.RoomNum && req.body.Building){
+    var unum = req.body.UNum;
+    var roomNum = req.body.RoomNum;
+    var building = req.body.Building;
+    db.revokeAccess(unum, roomNum, building)
+    .then(res.send({"error": "", "code": 200}))
+    .catch((err) => {
+      console.log("Error calling /revokeAccess endpoint.");
+      console.log(err);
+      res.send({"error": err, "code": 227});
+    })
+  }
+  else{
+    res.status(403).send({"error": "Invalid parameters submitted to /revokeAccess endpoint.\nRequires 'UNum', 'RoomNum', 'Building' parameters", code: 226});
+  }
 })
 //Add classschedule
-router.post('classschedule/:scannerid/:starttime/endtime', (req, res) => {
-  const Scannerid = getScanner(req.params.scannerid);
-  const StartTime = getStartTime(req.params.starttime);
-  const EndTime = getEndTime(req.params.endtime);
-  const { err, reqs } = await ClassSchedules.getvalue(Scannerid,StartTime,EndTime);      
-  if(Rooms.RoomID = Scanners.RoomID) {
-    res.send(reqs)
-  } else {
-    console.error(err);
-    res.send(err);
+router.post('/addClassPeriod', (req, res) => {
+  if(req.body.RoomNum && req.body.Building && req.body.StartTime && req.body.EndTime){
+    var roomNum = req.body.RoomNum;
+    var building = req.body.Building;
+    var startTime = req.body.StartTime;
+    var endTime = req.body.EndTime;
+    db.addClassPeriod(roomNum, building, startTime, endTime)
+    .then(res.send({"error": "", "code": 200}))
+    .catch((err) => {
+      console.log("Error calling /addClassPeriod endpoint.");
+      console.log(err);
+      res.send({"error": err, "code": 229})
+    })
+  }
+  else{
+    res.status(403).send({"error": "Invalid parameters submitted to /addClassPeriod endpoint.\nRequires 'RoomNum', 'Building', 'StartTime', 'EndTime' parameters", code: 228});
+
   }
 });
 //Remove class schedule
-router.post('removeclass/:timeslotid', (req, res) => {
-  const removeclass  = getRemoveClass(req.params.timeslotid);
-  if(!removeclass) return;
-  ClassSchedules.RemovClass(req.params.timeslotid, () => {
-    res.status(200).send();  
-  })
+router.post('/removeClassPeriod', (req, res) => {
+  if(req.body.ScheduleID){
+    var scheduleID = req.body.ScheduleID
+    db.removeClassPeriod(scheduleID)
+    .then(res.send({"error": "", "code": 200}))
+    .catch((err) => {
+      console.log("Error calling /removeClassPeriod endpoint.");
+      console.log(err);
+      res.send({"error": err, "code": 231})
+    })
+  }
+  else{
+    res.status(403).send({"error": "Invalid parameters submitted to /removeClassPeriod endpoint.\nRequires 'ScheduleID' parameter", code: 230});
+  }
 })
+
 //check user access
-router.post('/checkuser/:scannerid/:unum', function(req, res){
-  if(req.params.scannerid ==! AccessLists.ScannerID && req.params.unum ==! AccessLists.UNum)
-    return res.send("Not in the access list")
+router.post('/checkUserAccess', function(req, res){
+  if(req.body.UNum && req.body.ScannerID)
+  {
+    var uNum = req.body.UNum;
+    var scannerID = req.body.ScannerID;
+    db.checkUserAccess(uNum, scannerID)
+    .then((res) => {
+      res.send({"valid": res, "error": "", "code": 200});
+    })
+    .catch((err) => {
+      console.log("Error calling /checkUserAcces endpoint.");
+      console.log(err);
+      res.send({"error": err, "code": 233})
+    })
+  }
   else {
-    return res.send("Matching on the access list")
+    res.status(403).send({"error": "Invalid parameters submitted to /checkUserAccess endpoint.\nRequires 'UNum', 'ScannerID' parameters", code: 232});
   }
 });
+
 //check scheudule
-router.post('/checkschedule/:scannerid/currenttime', function(req, res){
-  const scannerid = req.params.scannerid;
-  const today = new Date;
-  if(AccessLists.StartTime <= today && AccessLists.EndTime >= today){
-    return res.send("valid value")
-  }else{
-    return res.send("Invalid value")
+router.post('/checkSchedule', function(req, res){
+  if(req.body.ScannerID){
+    var scannerID = req.body.ScannerID;
+    db.checkSchedule(scannerID)
+    .then((res) => {
+      res.send({"valid": res, "error": "", "code": 235})
+    })
+  }
+  else{
+    res.stats(403).send({"error": "Invalid parameters submitted to /checkSchedule endpoint.\nRequires 'ScannerID' parameters", code: 234});
+
   }
 });
 module.exports = router;
