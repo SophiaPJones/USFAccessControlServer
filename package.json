@@ -1,0 +1,26 @@
+{
+  "name": "finalproject",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node app.js",
+    "db": "node database/db.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "body-parser": "^1.20.0",
+    "node-fetch": "^3.2.8",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.1",
+    "express": "^4.18.1",
+    "express-basic-auth": "^1.2.1",
+    "helmet": "^5.1.0",
+    "morgan": "^1.10.0",
+    "pg": "^8.7.3",
+    "postgres-pool": "^6.0.3",
+    "sequelize": "^6.21.2"
+  }
+}
