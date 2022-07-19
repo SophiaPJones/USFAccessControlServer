@@ -21,20 +21,16 @@ const pool = new Pool({
 //     console.log(err);
 // });
 
-export function login(email) {
+ function login(email) {
     return new Promise((resolve, reject) => {
         pool.query(`SELECT * FROM Administrators WHERE email = $1::text`,[email])
-        .then((error, results) => {
-            if(error) {
-                console.log(error);
-                reject(error);
+        .then((results) => {
+            if(results.rows.length > 0) {
+                resolve(results.rows[0]);
             } else {
-                if(results.rows.length > 0) {
-                    resolve(results.rows[0]);
-                } else {
-                    reject(error);
-                }
+                reject(error);
             }
+            
         }).catch((error) => {
             console.log(error);
             reject(error);
@@ -42,16 +38,12 @@ export function login(email) {
     })
 }
 
-export function saveSession(key, unum, expireTime) {
+ function saveSession(key, unum, expireTime) {
     return new Promise((resolve, reject) => {
-        pool.query(`INSERT INTO Sessions (ssid, Unum, expireTime) VALUES($1::text, $2::text, $3::text)`, [key, unum, expireTime])
-        .then((error, results) => {
-            if(error) {
-                console.log(error);
-                reject(error);
-            } else {
-                resolve(results);
-            }
+        pool.query(`INSERT INTO Sessions (ssid, unum, expireTime) VALUES($1, $2, $3)`, [key, unum, expireTime])
+        .then((results) => {
+            resolve(results);
+            
         }).catch((error) => {
             console.log(error);
             reject(error);
@@ -59,14 +51,34 @@ export function saveSession(key, unum, expireTime) {
     })
 }
 
-export function register(UNum, firstName, lastName, hashedpassword, email) {
+function getSession(hashedkey, date) {
+    return new Promise((resolve, reject) => {
+        pool.query("SELECT * FROM Sessions WHERE ssid = $1 AND expiretime > $2",[hashedkey, date]) 
+        .then((results) => {
+            if(results.rowCount > 0) {
+                if(results.rows[0]) {
+                    resolve({exist:true, unum: results.rows[0].unum});
+                } else {
+                    resolve({exist:false, unum:"none"});
+                }
+            } else {
+                resolve({exist:false, user_id:"none"});
+            }
+        })
+        .catch((error) => {
+            console.log(error);
+            reject();
+        })
+    })
+}
+ function register(UNum, firstName, lastName, hashedpassword, email) {
     //registers new admin
     return new Promise((resolve, reject) => {
         pool.query(`INSERT INTO Users(UNum, firstName, lastName) VALUES($1, $2, $3)`,[UNum, firstName, lastName])
         .then((results) => {
             pool.query(`INSERT INTO Administrators(unum, password, email) VALUES($1, $2, $3)`, [UNum, hashedpassword, email])
             .then((res) => {
-                resolve();
+                resolve(res);
             })
             .catch((err) => {
                 console.log(err);
@@ -79,11 +91,11 @@ export function register(UNum, firstName, lastName, hashedpassword, email) {
     })
 }
 
-export function createUser(UNum, firstName, lastName){
+ function createUser(UNum, firstName, lastName){
     return new Promise((resolve, reject) => {
-        pool.query(`INSERT INTO Users(UNum, firstName, lastName) VALUE ($1, $2, $3)`, [UNum, firstName, lastName])
+        pool.query(`INSERT INTO Users(UNum, firstName, lastName) VALUES ($1, $2, $3)`, [UNum, firstName, lastName])
         .then((results) => {
-            resolve();
+            resolve(results);
         })
         .catch((err) => {
             console.log(`Error in db.createUser(${UNum}, ${firstName}, ${lastName})`);
@@ -93,9 +105,9 @@ export function createUser(UNum, firstName, lastName){
     })
 }
 
-export function createProfessor(UNum, firstName, lastName, title){
+ function createProfessor(UNum, firstName, lastName, title){
     return new Promise((resolve, reject) => {
-        pool.query(`INSERT INTO Users(UNum, firstName, lastName) VALUE ($1, $2, $3)`,[UNum, firstName, lastName])
+        pool.query(`INSERT INTO Users(UNum, firstName, lastName) VALUES ($1, $2, $3)`,[UNum, firstName, lastName])
         .then((results) => {
             pool.query(`INSERT INTO Professors (UNum, Title) VALUES ($1, $2)`, [UNum, title])
             .then(resolve())
@@ -112,7 +124,7 @@ export function createProfessor(UNum, firstName, lastName, title){
         })
     })
 }
-export function getAccessCode(scannerID){
+ function getAccessCode(scannerID){
     return new Promise((resolve, reject) => {
         pool.query(`SELECT * FROM Scanners WHERE ScannerID = $1`, [scannerID])
         .then((res) => {
@@ -126,7 +138,7 @@ export function getAccessCode(scannerID){
     })
 }
 
-export function createRoom(RoomNum, Building){
+ function createRoom(RoomNum, Building){
     return new Promise((resolve, reject) => {
         pool.query(`INSERT INTO Rooms (RoomNum, Building) VALUES ($1 , $2)`,[RoomNum, Building])
         .then((res) => {
@@ -140,7 +152,7 @@ export function createRoom(RoomNum, Building){
     });
 }
 
-export function removeRoom(RoomNum, Building){
+ function removeRoom(RoomNum, Building){
     return new Promise((resolve, reject) => {
         pool.query(`DELETE FROM Rooms WHERE RoomNum = $1 AND Building = $2`, [RoomNum, Building])
         .then((res) => {
@@ -154,7 +166,7 @@ export function removeRoom(RoomNum, Building){
     });
 }
 
-export function createScanner(hashedAccessCode){
+ function createScanner(hashedAccessCode){
     return new Promise((resolve, reject) => {
         pool.query(`INSERT INTO Scanners (accesscode) VALUES ($1)`, [hashedAccessCode])
         .then((res) => {
@@ -168,37 +180,55 @@ export function createScanner(hashedAccessCode){
     });
 }
 
-export function createScannerAndAssign(hashedAccessCode, roomNum, building, doorNum){
+ function createScannerAndAssign(hashedAccessCode, roomNum, building, doorNum){
     return new Promise((resolve, reject) => {
-        pool.query(`INSERT INTO Scanners (AccessCode, RoomNum, Building, DoorNum) VALUES ($1, $2, $3, $4)`, [hashedAccessCode, roomNum,building,doorNum])
-        .then((res) => {
-            resolve(true);
+        pool.query('SELECT * FROM Rooms WHERE RoomNum = $1 AND Building = $2', [roomNum, building])
+        .then((results) => {
+            pool.query(`INSERT INTO Scanners (AccessCode, DoorNum, roomID) VALUES ($1, $2, $3)`, [hashedAccessCode, doorNum, results.rows[0]["roomid"]])
+            .then((res) => {
+                resolve(true);
+            })
+            .catch((err) => {
+                console.log(`Error in db.createScanner(${hashedAccessCode}):`);
+                console.log(err);
+                reject(err);
+            })
         })
         .catch((err) => {
-            console.log(`Error in db.createScanner(${hashedAccessCode}):`);
+            console.log(`Error in db.createScanner(${hashedAccessCode}, ${roomNum}, ${building}, ${doorNum})`);
             console.log(err);
             reject(err);
         })
+
     });
 }
 
-export function assignScanner(scannerID, roomNum, building, doorNum){
+ function assignScanner(scannerID, roomNum, building, doorNum){
     return new Promise((resolve, reject) => {
-        pool.query(`UPDATE TABLE Scanners SET RoomNum = $1, Building = $2, DoorNum = $3 WHERE ScannerID = $4` [roomNum,building,doorNum,scannerID])
-        .then((res) => {
-            resolve(true);
+        pool.query('SELECT * FROM Rooms WHERE RoomNum = $1 AND Building = $2', [roomNum, building])
+        .then((results) => {
+            pool.query(`UPDATE Scanners SET RoomID = $1, DoorNum = $2 WHERE ScannerID = $3`, [results.rows[0]["roomid"],doorNum,scannerID])
+            .then((res) => {
+                resolve(true);
+            })
+            .catch((err) => {
+                console.log(`Error in db.assignScanner(${scannerID, roomNum, building, doorNum}):`);
+                console.log(err);
+                reject(err);
+            });
         })
         .catch((err) => {
-            console.log(`Error in db.assignScanner(${scannerID, roomNum, building, doorNum}):`);
-            console.log(err);
-            reject(err);
-        });
+                console.log(`Error in db.assignScanner(${scannerID, roomNum, building, doorNum}):`);
+                console.log(err);
+                reject(err);
+        })
+        
     });
 }
 
-export function unassignScanner(scannerID){
+ function unassignScanner(scannerID){
     return new Promise((resolve, reject) => {
-        pool.query(`UPDATE TABLE Scanners SET RoomNum = NULL, Building = NULL, DoorNum = NULL WHERE ScannerID = $1` [scannerID])
+        pool.query(`UPDATE Scanners SET RoomID = NULL, DoorNum = NULL WHERE ScannerID = $1`, [scannerID])
         .then((res) => {
             resolve(true);
         })
@@ -210,9 +240,12 @@ export function unassignScanner(scannerID){
     });
 }
 
-export function removeUser(UNum){
+ function removeUser(UNum){
     return new Promise((resolve, reject) => {
-        pool.query('DELETE FROM Administrators WHERE Unum = $1; DELETE FROM Professors WHERE Unum = $1; DELETE FROM AccessList WHERE UNum = $1; DELETE FROM Users WHERE UNum = $1;', [UNum])
+        pool.query('DELETE FROM Administrators WHERE Unum = $1', [UNum])
+        .then(pool.query('DELETE FROM Professors WHERE Unum = $1', [UNum]))
+        .then(pool.query('DELETE FROM AccessList WHERE UNum = $1', [UNum]))
+        .then(pool.query('DELETE FROM Users WHERE UNum = $1', [UNum]))
         .then((res) => {
             resolve(true);
         })
@@ -224,21 +257,27 @@ export function removeUser(UNum){
     });
 }
 
-export function grantAccess(Unum, RoomNum, Building){
+ function grantAccess(Unum, RoomNum, Building){
     return new Promise((resolve, reject) => {
-        pool.query('SELECT * FROM Scanners WHERE RoomNum = $1 AND Building = $2', [RoomNum, Building])
-        .then(async (res) => {
-            await Promise.all(
-                res.rows.map(async (scanner) => {
-                        pool.query('INSERT INTO AccessList VALUES ($1, $2)', [scanner.scannerID, Unum])
-                        .catch((err) => {
-                            console.log(`Error in db.grantAccess during insertion with values ${scanner.scannerID}, ${Unum}`)
-                            console.log(err);
-                            reject(err);
-                        })
-                    })
-            )
-            .then(resolve(true));
+        pool.query('SELECT * FROM Rooms WHERE RoomNum = $1 AND Building = $2', [RoomNum, Building])
+        .then((res) => {
+            if(res.rowCount > 0){
+                var roomID = res.rows[0]['roomid'];
+                pool.query('SELECT * FROM Scanners WHERE RoomID = $1', [roomID])
+                .then(async (res) => {
+                    await Promise.all(
+                        res.rows.map(async (scanner) => {
+                                pool.query('INSERT INTO AccessList VALUES ($1, $2)', [scanner["scannerid"], Unum])
+                                .catch((err) => {
+                                    console.log(`Error in db.grantAccess during insertion with values ${scanner.scannerID}, ${Unum}`)
+                                    console.log(err);
+                                    reject(err);
+                                })
+                            })
+                    )
+                    .then(resolve(true));
+                })
+            }
         })
         .catch((err) => {
             console.log(`Error in db.grantAccess during selection phase with values ${RoomNum}, ${Building}`);
@@ -248,22 +287,26 @@ export function grantAccess(Unum, RoomNum, Building){
     })
 }
 
-export function revokeAccess(Unum, RoomNum, Building){
+ function revokeAccess(Unum, RoomNum, Building){
     return new Promise((resolve, reject) => {
-        pool.query('SELECT * FROM Scanners WHERE RoomNum = $1 AND Building = $2', [RoomNum, Building])
-        .then(async (res) => {
-            await Promise.all(
-                res.rows.map(async (scanner) => {
-                        pool.query('DELETE FROM AccessList WHERE ScannerID = $1 AND UNum =  $2', [scanner.scannerID, Unum])
-                        .catch((err) => {
-                            console.log(`Error in db.revokeAccess during deletion phase with values ${scanner.scannerID}, ${Unum}`)
-                            console.log(err);
-                            reject(err);
+        pool.query('SELECT * FROM Rooms WHERE RoomNum = $1 AND Building = $2', [RoomNum, Building])
+        .then((res) => {
+            if(!res.rows[0]) reject();
+            pool.query('SELECT * FROM Scanners WHERE RoomID = $1', [res.rows[0]["roomid"]])
+            .then(async (res) => {
+                await Promise.all(
+                    res.rows.map(async (scanner) => {
+                            pool.query('DELETE FROM AccessList WHERE ScannerID = $1 AND UNum =  $2', [scanner["scannerid"], Unum])
+                            .catch((err) => {
+                                console.log(`Error in db.revokeAccess during deletion phase with values ${scanner.scannerID}, ${Unum}`)
+                                console.log(err);
+                                reject(err);
+                            })
                         })
-                    })
-            )
-            .then(resolve(true));
-        })
+                )
+                .then(resolve(true));
+            })
+        }) 
         .catch((err) => {
             console.log(`Error in db.revokeAccess during selection phase with values ${RoomNum}, ${Building}`);
             console.log(err);
@@ -272,21 +315,24 @@ export function revokeAccess(Unum, RoomNum, Building){
     })
 }
 
-export function addClassPeriod(RoomNum, Building, StartTime, EndTime){
+ function addClassPeriod(RoomNum, Building, StartTime, EndTime){
     return new Promise((resolve, reject) => {
-        pool.query('SELECT * FROM Scanners WHERE RoomNum = $1 AND Building = $2', [RoomNum, Building])
-        .then(async (res) => {
-            await Promise.all(
-                res.rows.map(async (scanner) => {
-                        pool.query('INSERT INTO Schedules(ScannerID, StartTime, EndTime) VALUES($1, $2, $3)', [scanner.scannerID, StartTime, EndTime])
-                        .catch((err) => {
-                            console.log(`Error in db.addClassPeriod during insertion phase with values ${scanner.scannerID}, ${StartTime}, ${EndTime}`)
-                            console.log(err);
-                            reject(err);
+        pool.query('SELECT * FROM Rooms WHERE RoomNum = $1 AND Building = $2', [RoomNum, Building])
+        .then((res) => {
+            pool.query('SELECT * FROM Scanners WHERE RoomID = $1', [res.rows[0]["roomid"]])
+            .then(async (res) => {
+                await Promise.all(
+                    res.rows.map(async (scanner) => {
+                            pool.query('INSERT INTO Schedules(ScannerID, StartTime, EndTime) VALUES($1, $2, $3)', [scanner["scannerid"], StartTime, EndTime])
+                            .catch((err) => {
+                                console.log(`Error in db.addClassPeriod during insertion phase with values ${scanner["scannerid"]}, ${StartTime}, ${EndTime}`)
+                                console.log(err);
+                                reject(err);
+                            })
                         })
-                    })
-            )
-            .then(resolve(true));
+                )
+                .then(resolve(true));
+            })
         })
         .catch((err) => {
             console.log(`Error in db.addClassPeriod during selection phase with values ${RoomNum}, ${Building}`);
@@ -296,7 +342,7 @@ export function addClassPeriod(RoomNum, Building, StartTime, EndTime){
     })
 }
 
-export function removeClassPeriod(ScheduleID){
+ function removeClassPeriod(ScheduleID){
     return new Promise((resolve, reject) => {
         pool.query('DELETE FROM Schedules WHERE ScheduleID = $1', [ScheduleID])
         .then(() => {
@@ -309,25 +355,29 @@ export function removeClassPeriod(ScheduleID){
         })
     })
 }
-
-export function checkUserAccess(UNum, ScannerID){
+ 
+function checkUserAccess(UNum, ScannerID){
     return new Promise((resolve, reject) => {
-        pool.query('SELECT * FROM AccessList WHERE UNum = $1 AND ScheduleID = $2', [Unum, ScannerID])
+        pool.query('SELECT * FROM AccessList WHERE UNum = $1 AND ScannerID = $2', [UNum, ScannerID])
         .then((res) => {
-            if(res.rowCount >= 1){
-                resolve(true);
+            if(res.rowCount > 0){
+                //log it
+                pool.query('INSERT INTO LOG (unum, scannerid, roomid, eventtime) VALUES ($1, $2, $3, NOW())', [UNum, ScannerID, res.rows[0]['roomid']])
+                .then(                
+                    resolve(true)
+                )
             }
             else resolve(false);
         })
         .catch((err) => {
-            console.log(`Error in db.checkUserAccess during selection phase with values ${Unum}, ${ScannerID}`);
+            console.log(`Error in db.checkUserAccess during selection phase with values ${UNum}, ${ScannerID}`);
             console.log(err);
             reject(err);        
         })
     })
 }
 
-export function checkSchedule(ScannerID){
+function checkSchedule(ScannerID){
     return new Promise((resolve, reject) => {
 
         pool.query('SELECT * FROM Schedules WHERE current_timestamp >= StartTime AND current_timestamp <= EndTime AND ScannerID = $1', [ScannerID])
@@ -343,4 +393,105 @@ export function checkSchedule(ScannerID){
             reject(err);        
         })
     })
+}
+
+function getRooms(){
+    return new Promise((resolve, reject) => {
+        pool.query('SELECT * FROM Rooms')
+        .then((res)=> {
+            resolve(res.rows);
+        })
+        .catch((err) => {
+            console.log("Error in db.getRooms().");
+            console.log(err);
+            reject(err);
+        })
+    })
+}
+
+function getUsers(){
+    return new Promise((resolve, reject) => {
+        pool.query('SELECT * FROM Users')
+        .then((res)=> {
+            resolve(res.rows);
+        })
+        .catch((err) => {
+            console.log("Error in db.getUsers().");
+            console.log(err);
+            reject(err);
+        })
+    })
+}
+
+function getProfessors(){
+    return new Promise((resolve, reject) => {
+        pool.query('SELECT * FROM Professors')
+        .then((res)=> {
+            resolve(res.rows);
+        })
+        .catch((err) => {
+            console.log("Error in db.getProfessors().");
+            console.log(err);
+            reject(err);
+        })
+    })
+}
+
+function getAdministrators(){
+    return new Promise((resolve, reject) => {
+        pool.query('SELECT (UNum, email) FROM Administrators')
+        .then((res)=> {
+            resolve(res.rows);
+        })
+        .catch((err) => {
+            console.log("Error in db.getAdministrators().");
+            console.log(err);
+            reject(err);
+        })
+    })
+}
+
+function getScanners(){
+    return new Promise((resolve, reject) => {
+        pool.query('SELECT * FROM Scanners')
+        .then((res)=> {
+            resolve(res.rows);
+        })
+        .catch((err) => {
+            console.log("Error in db.getScanners().");
+            console.log(err);
+            reject(err);
+        })
+    })
+}
+
+function getRoomAccessList(RoomNum, Building){
+    return new Promise((resolve, reject) => {
+        pool.query('SELECT AccessList.ScannerID, AccessList.UNum FROM Scanners JOIN Rooms ON Scanners.RoomID = Rooms.RoomID JOIN AccessList ON Scanners.ScannerID = AccessList.ScannerID WHERE RoomNum = $1 AND Building = $2', [RoomNum, Building])
+        .then((res)=> {
+            resolve(res.rows);
+        })
+        .catch((err) => {
+            console.log("Error in db.getRoomAccessList().");
+            console.log(err);
+            reject(err);
+        })
+    })
+}
+
+module.exports = {
+    login, saveSession,
+    register, createUser,
+    createProfessor, getAccessCode,
+    createRoom, removeRoom,
+    createScanner, createScannerAndAssign,
+    assignScanner, unassignScanner,
+    removeUser, grantAccess,
+    revokeAccess, addClassPeriod,
+    removeClassPeriod, checkUserAccess,
+    checkSchedule, getSession,
+    getRooms, getUsers,
+    getProfessors, getAdministrators,
+    getScanners, getRoomAccessList
+
 }

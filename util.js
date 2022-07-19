@@ -4,11 +4,12 @@ const crypto = require('crypto');
 
 var config = require('./config');
 
-export function authCheck() {
+function authCheck() {
     return(req, res, next) => {
         if(req.body.key) {
             // Check if the session has expired and exists, return user_id
-            db.getSession(crypto.createHmac('sha256', config.encrypt.hashsecret).update(req.body.key).digest('hex').toString(), this.formattedDate(new Date())).then((object) => {
+            db.getSession(req.body.key, this.formatDate(new Date()))
+            .then((object) => {
                 if(object.exist) {
                     //A valid session exists with the given key.
                     return next();
@@ -25,7 +26,7 @@ export function authCheck() {
 }
 
 // YYYY-MM-DD HH:mm:ss
-export function formatDate(date) {
+function formatDate(date) {
     return (date.getFullYear()+"-"+
         (date.getMonth()+1).toString().padStart(2, '0')+"-"+
         (date.getDate()).toString().padStart(2, '0')+" "+
@@ -33,8 +34,12 @@ export function formatDate(date) {
         date.getMinutes().toString().padStart(2, '0')+":"+
         date.getSeconds().toString().padStart(2, '0'));
 }
-export function formatDate2(date) {
+function formatDate2(date) {
     return (date.getHours().toString().padStart(2, '0')+":"+
         date.getMinutes().toString().padStart(2, '0')+":"+
         date.getSeconds().toString().padStart(2, '0'));
+}
+
+module.exports = {
+    authCheck, formatDate, formatDate2
 }

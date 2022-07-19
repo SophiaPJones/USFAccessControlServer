@@ -21,6 +21,9 @@
     "morgan": "^1.10.0",
     "pg": "^8.7.3",
     "postgres-pool": "^6.0.3",
-    "sequelize": "^6.21.2"
+    "sequelize": "^6.21.2",
+    "bcrypt": "^5.0.1",
+    "uuid":"^8.3.2",
+    "crypto":"^1.0.1"
   }
 }

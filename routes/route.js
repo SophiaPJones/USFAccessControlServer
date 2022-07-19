@@ -1,18 +1,15 @@
 
 const express = require ('express');
 const router  = express.Router();
-const Rooms = require('../models/Rooms');
-const Scanners = require('../models/Scanners');
-const Users = require('../models/Users');
-const Administrators = require('../models/Administrators');
-const Professors = require('../models/Professors');
-const AccessLists = require('../models/AccessLists');
-const ClassSchedules = require('../models/ClassSchedules');
 const db = require('../database/db');
 const util = require('../util');
 const config = require('../config');
 const { route } = require('express/lib/application');
 const bcrypt = require('bcrypt');
+const uuid = require('uuid');
+const crypto = require('crypto');
+const { Pool } = require('pg');
+
 
 router.post("/login", (req, res) => {
   if(req.body.email && req.body.password) {
@@ -28,7 +25,7 @@ router.post("/login", (req, res) => {
                       // Create expire time (24 hour sessions)
                       var expires = new Date(new Date().getTime()+(1000*60*60*24))
                       // Hash it and Save to db
-                      db.savesession(crypto.createHmac('sha256', config.encrypt.hashsecret).update(ssid).digest('hex').toString(), credentials.Unum, util.formatDate(expires))
+                      db.saveSession(crypto.createHmac('sha256', config.encrypt.hashsecret).update(ssid).digest('hex').toString(), credentials.unum, util.formatDate(expires))
                           .then(() => {
                           res.status(200).send({key:ssid, "code": 200});
                       }).catch(() => {
@@ -108,7 +105,7 @@ router.post('/createScanner', util.authCheck(), function(req,res){
         res.send({"error": err, "code": 210})
       })
    }
-   else if(req.body.AccessCode && !req.body.Building && !req.body.RoomNum && !req.body.DoorNum){
+   else if(req.body.AccessCode && req.body.Building && req.body.RoomNum && req.body.DoorNum){
     var roomNum = typeof req.body.RoomNum === 'string' ? parseInt(req.body.RoomNum) : req.body.RoomNum;
     var building = req.body.Building;
     var doorNum = typeof req.body.DoorNum === 'string' ? parseInt(req.body.DoorNum) : req.body.DoorNum;
@@ -156,7 +153,7 @@ router.post('/assignScanner', util.authCheck(), function(req,res){
 router.post('/unassignScanner', util.authCheck(), function(req,res){
   if(req.body.ScannerID){
     var scannerID = typeof req.body.ScannerID === 'string' ? parseInt(req.body.ScannerID) : req.body.ScannerID;
-    db.assignScanner(scannerID, "NULL", "NULL", "NULL")
+    db.unassignScanner(scannerID)
     .then(res.send({"error":"", "code":200}))
     .catch((err) => {
       console.log("Error calling /assignScanner endpoint.");
@@ -169,7 +166,7 @@ router.post('/unassignScanner', util.authCheck(), function(req,res){
   }
 });
 
-router.createUser('/createUser', util.authCheck(), function(req, res){
+router.post('/createUser', util.authCheck(), function(req, res){
   if(req.body.Role && req.body.UNum && req.body.FirstName && req.body.LastName){
     var unum = typeof req.body.UNum === 'string' ? parseInt(req.body.UNum) : req.body.UNum;
     var role = req.body.Role;
@@ -199,13 +196,17 @@ router.createUser('/createUser', util.authCheck(), function(req, res){
     else if(role === "Administrator" && req.body.password && req.body.email){
       var unhashedPassword = req.body.password;
       var email = req.body.email;
-      bcrypt.hash(unhashedPassword, config.encrypt.saltrounds, (hashedPassword) => {
-        db.register(unum,firstName,lastName,hashedPassword,email)
-        .then(res.send({"error":"","code":200}))
-        .catch((err) => {
-          console.log("Error calling /createUser endpoint with role Administrator.");
-          console.log(err);
-          res.send({"error": err, "code": 219});
+      bcrypt.hash(unhashedPassword, config.encrypt.saltrounds)
+      .then(
+        (hashedPassword) => {
+          console.log("Hashed Password: ");
+          console.log(hashedPassword);
+          db.register(unum,firstName,lastName,hashedPassword,email)
+          .then(res.send({"error":"","code":200}))
+          .catch((err) => {
+            console.log("Error calling /createUser endpoint with role Administrator.");
+            console.log(err);
+            res.send({"error": err, "code": 219});
         })
       })
     }
@@ -315,8 +316,8 @@ router.post('/checkUserAccess', function(req, res){
     var uNum = req.body.UNum;
     var scannerID = req.body.ScannerID;
     db.checkUserAccess(uNum, scannerID)
-    .then((res) => {
-      res.send({"valid": res, "error": "", "code": 200});
+    .then((result) => {
+      res.send({"valid": result, "error": "", "code": 200});
     })
     .catch((err) => {
       console.log("Error calling /checkUserAcces endpoint.");
@@ -334,8 +335,8 @@ router.post('/checkSchedule', function(req, res){
   if(req.body.ScannerID){
     var scannerID = req.body.ScannerID;
     db.checkSchedule(scannerID)
-    .then((res) => {
-      res.send({"valid": res, "error": "", "code": 235})
+    .then((result) => {
+      res.send({"valid": result, "error": "", "code": 235})
     })
   }
   else{
@@ -343,4 +344,73 @@ router.post('/checkSchedule', function(req, res){
 
   }
 });
+
+router.post('/getRooms', util.authCheck(), function(req, res) {
+  db.getRooms()
+  .then((result)=> {
+    res.send({"rooms": result, "error": "", "code": 200});
+  })
+  .catch((err) => {
+    console.log("Error calling /getRooms endpoint.");
+    console.log(err);
+    res.send({"error": err, "code": 236})
+  })
+});
+
+router.post('/getUsers', util.authCheck(), function(req, res) {
+  db.getUsers()
+  .then((result)=> {
+    res.send({"users": result, "error": "", "code": 200});
+  })
+  .catch((err) => {
+    console.log("Error calling /getUsers endpoint.");
+    console.log(err);
+    res.send({"error": err, "code": 237})
+  })
+});
+
+router.post('/getProfessors', util.authCheck(), function(req, res) {
+  db.getProfessors()
+  .then((result)=> {
+    res.send({"professors": result, "error": "", "code": 200});
+  })
+  .catch((err) => {
+    console.log("Error calling /getProfessors endpoint.");
+    console.log(err);
+    res.send({"error": err, "code": 237})
+  })
+});
+
+router.post('/getAdministrators', util.authCheck(), function(req, res) {
+  db.getProfessors()
+  .then((result)=> {
+    res.send({"professors": result, "error": "", "code": 200});
+  })
+  .catch((err) => {
+    console.log("Error calling /getAdministrators endpoint.");
+    console.log(err);
+    res.send({"error": err, "code": 237})
+  })
+});
+
+router.post('/getRoomAccessList', util.authCheck(), function(req, res) {
+  if(req.body.RoomNum && req.body.Building){
+    var roomNum = typeof req.body.RoomNum === 'string' ? parseInt(req.body.RoomNum) : req.body.RoomNum;
+    var building = req.body.Building;
+    db.getRoomAccessList(roomNum, building)
+    .then( (result) => {
+        res.send({"accessList": result, "error": "", "code": 200})
+      }
+    )
+    .catch((err) => {
+      console.log("Error calling /createRoom endpoint.");
+      console.log(err);
+      res.send({"error": err, "code": 202});
+    })
+ }
+ else{
+   res.status(403).send({"error": "Invalid paramaters submitted to /createRoom endpoint.\nRequires 'RoomNum' and 'Building' parameters.", code: 201});
+ }
+});
+
 module.exports = router;
