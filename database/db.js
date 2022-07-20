@@ -362,10 +362,14 @@ function checkUserAccess(UNum, ScannerID){
         .then((res) => {
             if(res.rowCount > 0){
                 //log it
-                pool.query('INSERT INTO LOG (unum, scannerid, roomid, eventtime) VALUES ($1, $2, $3, NOW())', [UNum, ScannerID, res.rows[0]['roomid']])
-                .then(                
-                    resolve(true)
-                )
+                //getScannerRoomInfo
+                pool.query('SELECT * FROM Scanners WHERE ScannerID = $1', [ScannerID])
+                .then((result) => {
+                    pool.query('INSERT INTO LOG (unum, scannerid, roomid, eventtime) VALUES ($1, $2, $3, NOW())', [UNum, ScannerID, result.rows[0]['roomid']])
+                    .then(                
+                        resolve(true)
+                    )
+                })
             }
             else resolve(false);
         })
@@ -472,7 +476,35 @@ function getRoomAccessList(RoomNum, Building){
             resolve(res.rows);
         })
         .catch((err) => {
-            console.log("Error in db.getRoomAccessList().");
+            console.log(`Error in db.getRoomAccessList(${RoomNum}, ${Building}).`);
+            console.log(err);
+            reject(err);
+        })
+    })
+}
+
+function getLogForRoom(RoomNum, Building) {
+    return new Promise((resolve, reject) => {
+        pool.query('SELECT Log.eventid, Log.unum, Log.ScannerID, Log.eventtime FROM Log JOIN Rooms ON Log.RoomID = Rooms.RoomID WHERE Rooms.RoomNum = $1 AND Rooms.Building = $2', [RoomNum, Building])
+        .then((res) => {
+            resolve(res.rows);
+        })
+        .catch((err) => {
+            console.log(`Error in db.getLogForRoom(${RoomNum}, ${Building}).`);
+            console.log(err);
+            reject(err);
+        })
+    })
+}
+
+function getScannersAssignedToRoom(RoomNum, Building) {
+    return new Promise((resolve, reject) => {
+        pool.query('SELECT Scanners.ScannerID FROM Scanners JOIN Rooms ON Scanners.RoomID = Rooms.RoomID WHERE Rooms.RoomNum = $1 AND Rooms.Building = $2', [RoomNum, Building])
+        .then((res) => {
+            resolve(res.rows);
+        })
+        .catch((err) => {
+            console.log(`Error in db.getScannersAssignedToRoom(${RoomNum}, ${Building}).`);
             console.log(err);
             reject(err);
         })
@@ -492,6 +524,7 @@ module.exports = {
     checkSchedule, getSession,
     getRooms, getUsers,
     getProfessors, getAdministrators,
-    getScanners, getRoomAccessList
+    getScanners, getRoomAccessList,
+    getLogForRoom, getScannersAssignedToRoom
 
 }

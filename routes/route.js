@@ -25,9 +25,10 @@ router.post("/login", (req, res) => {
                       // Create expire time (24 hour sessions)
                       var expires = new Date(new Date().getTime()+(1000*60*60*24))
                       // Hash it and Save to db
-                      db.saveSession(crypto.createHmac('sha256', config.encrypt.hashsecret).update(ssid).digest('hex').toString(), credentials.unum, util.formatDate(expires))
+                      const sessionHash = crypto.createHmac('sha256', config.encrypt.hashsecret).update(ssid).digest('hex').toString()
+                      db.saveSession(sessionHash, credentials.unum, util.formatDate(expires))
                           .then(() => {
-                          res.status(200).send({key:ssid, "code": 200});
+                          res.status(200).send({key:sessionHash, "code": 200});
                       }).catch(() => {
                           res.status(500).send({"error":"Couldn't save session in DB", "code": 207});
                       })
@@ -403,14 +404,52 @@ router.post('/getRoomAccessList', util.authCheck(), function(req, res) {
       }
     )
     .catch((err) => {
-      console.log("Error calling /createRoom endpoint.");
+      console.log("Error calling /getRoomAccessList endpoint.");
       console.log(err);
-      res.send({"error": err, "code": 202});
-    })
+      res.send({"error": err, "code": 238});
+    });
  }
  else{
-   res.status(403).send({"error": "Invalid paramaters submitted to /createRoom endpoint.\nRequires 'RoomNum' and 'Building' parameters.", code: 201});
+   res.status(403).send({"error": "Invalid paramaters submitted to /getRoomAccessList endpoint.\nRequires 'RoomNum' and 'Building' parameters.", code: 240});
  }
 });
+
+router.post('/getLogForRoom', util.authCheck(), function(req, res) {
+  if(req.body.RoomNum && req.body.Building){
+    var roomNum = typeof req.body.RoomNum === 'string' ? parseInt(req.body.RoomNum) : req.body.RoomNum;
+    var building = req.body.Building;
+    db.getLogForRoom(roomNum, building)
+    .then((result) => {
+      res.send({"log": result, "error": "", "code": 200});
+    })
+    .catch((err) => {
+      console.log("Error calling /getLogForRoom endpoint.");
+      console.log(err);
+      res.send({"error": err, "code": 239});
+    });
+  }
+  else{
+    res.status(403).send({"error": "Invalid paramaters submitted to /getLogForRoom endpoint.\nRequires 'RoomNum' and 'Building' parameters.", code: 241});
+  }
+})
+
+router.post('/getScannersAssignedToRoom', util.authCheck(), function(req, res) {
+  if(req.body.RoomNum && req.body.Building){
+    var roomNum = typeof req.body.RoomNum === 'string' ? parseInt(req.body.RoomNum) : req.body.RoomNum;
+    var building = req.body.Building;
+    db.getScannersAssignedToRoom(roomNum, building)
+    .then((result) => {
+      res.send({"scanners": result, "error": "", "code": 200});
+    })
+    .catch((err) => {
+      console.log("Error calling /getScannersAssignedToRoom endpoint.");
+      console.log(err);
+      res.send({"error": err, "code": 242});
+    });
+  }
+  else{
+    res.status(403).send({"error": "Invalid paramaters submitted to /getScannersAssignedToRoom endpoint.\nRequires 'RoomNum' and 'Building' parameters.", code: 243});
+  }
+})
 
 module.exports = router;
