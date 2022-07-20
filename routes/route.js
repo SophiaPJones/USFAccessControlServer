@@ -10,11 +10,15 @@ const uuid = require('uuid');
 const crypto = require('crypto');
 const { Pool } = require('pg');
 
+const validateEmail = (email) => {
+  return String(email).toLowerCase().match(/^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/);
+}
 
 router.post("/login", (req, res) => {
   if(req.body.email && req.body.password) {
       var buffer = String(req.body.email).toLowerCase();
-      if(buffer) {
+      const emailValidated = validateEmail(buffer);
+      if(emailValidated) {
           // Get Credentials
           db.login(buffer).then((credentials) => {
               bcrypt.compare(req.body.password, credentials.password).then((pass) => {
@@ -40,7 +44,7 @@ router.post("/login", (req, res) => {
               res.status(401).send({"error":"Could not retrieve administrator's credentials in endpoint /login", "code": 205});
           })
       } else {
-          res.status(401).send({"error":"toLowerCase buffer for email failed in endpoint /login", "code": 204});
+          res.status(401).send({"error":"Validation for email failed in endpoint /login", "code": 204});
       }
   } else {
       res.status(401).send({"error":"Invalid parameters in call to endpoint /login", "code": 203});
@@ -196,20 +200,26 @@ router.post('/createUser', util.authCheck(), function(req, res){
     }
     else if(role === "Administrator" && req.body.password && req.body.email){
       var unhashedPassword = req.body.password;
-      var email = req.body.email;
-      bcrypt.hash(unhashedPassword, config.encrypt.saltrounds)
-      .then(
-        (hashedPassword) => {
-          console.log("Hashed Password: ");
-          console.log(hashedPassword);
-          db.register(unum,firstName,lastName,hashedPassword,email)
-          .then(res.send({"error":"","code":200}))
-          .catch((err) => {
-            console.log("Error calling /createUser endpoint with role Administrator.");
-            console.log(err);
-            res.send({"error": err, "code": 219});
+      var email = String(req.body.email).toLowerCase();
+      var emailValidated = validateEmail(email);
+      if(emailValidated){
+        bcrypt.hash(unhashedPassword, config.encrypt.saltrounds)
+        .then(
+          (hashedPassword) => {
+            console.log("Hashed Password: ");
+            console.log(hashedPassword);
+            db.register(unum,firstName,lastName,hashedPassword,email)
+            .then(res.send({"error":"","code":200}))
+            .catch((err) => {
+              console.log("Error calling /createUser endpoint with role Administrator.");
+              console.log(err);
+              res.send({"error": err, "code": 219});
+          })
         })
-      })
+      }
+      else{
+        res.status(403).send({"error": "Email validation failed in /createUser endpoint.", code: 246})
+      }
     }
     else{
       res.status(403).send({"error": "Invalid parameters submitted to /createUser endpoint.\nInvalid parameters for given role.", code: 218});
@@ -449,6 +459,102 @@ router.post('/getScannersAssignedToRoom', util.authCheck(), function(req, res) {
   }
   else{
     res.status(403).send({"error": "Invalid paramaters submitted to /getScannersAssignedToRoom endpoint.\nRequires 'RoomNum' and 'Building' parameters.", code: 243});
+  }
+})
+
+router.post('/updatePassword', util.authCheck(), function(req, res) {
+  if(req.body.UNum && req.body.Password){
+    var unum = typeof req.body.UNum === 'string' ? parseInt(req.body.UNum) : req.body.UNum;
+    var unhashedPassword = req.body.Password;
+    bcrypt.hash(unhashedPassword, config.encrypt.saltrounds)
+    .then(
+      (hashedPassword) => {
+        console.log("Hashed Password: ");
+        console.log(hashedPassword);
+        db.updatePassword(unum,hashedPassword)
+        .then(res.send({"error":"","code":200}))
+        .catch((err) => {
+          console.log("Error calling /updatePassword endpoint.");
+          console.log(err);
+          res.send({"error": err, "code": 244});
+      })
+    })
+
+  }
+  else{
+    res.status(403).send({"error": "Invalid paramaters submitted to /updatePassword endpoint.\nRequires 'UNum' and 'Password' parameters.", code: 245});
+  }
+})
+
+router.post('/updateEmail', util.authCheck(), function(req, res) {
+  if(req.body.UNum && req.body.Email){
+    var unum = typeof req.body.UNum === 'string' ? parseInt(req.body.UNum) : req.body.UNum;
+    var email = String(req.body.Email).toLowerCase(); 
+    var emailValidated = validateEmail(email);
+    if(emailValidated){
+      db.updateEmail(unum, email)
+      .then(res.send({"error": "", "code": 200}))
+      .catch((err) => {
+        console.log("Error calling /updateEmail endpoint.");
+        console.log(err);
+        res.send({"error": err, "code": 245});
+      })
+    }
+    else{
+      res.status(403).send({"error": "Email validation failed in /updateEmail endpoint.", "code": 247});
+    }
+  }
+  else{
+    res.status(403).send({"error": "Invalid paramaters submitted to /updateEmail endpoint.\nRequires 'UNum' and 'Email' parameters.", code: 248});
+  }
+})
+
+router.post('/updateName', util.authCheck(), function(req, res) {
+  if(req.body.UNum && req.body.FirstName && req.body.LastName){
+    var unum = typeof req.body.UNum === 'string' ? parseInt(req.body.UNum) : req.body.UNum;
+    var firstName = req.body.FirstName;
+    var lastName = req.body.LastName;
+    db.updateName(unum, firstName, lastName)
+    .then(res.send({"error": "", "code": 200}))
+    .catch((err) => {
+      console.log("Error calling /updateName endpoint.");
+      console.log(err);
+      res.send({"error": err, "code": 249})
+    })
+  }
+  else{
+    res.status(403).send({"error": "Invalid paramaters submitted to /updateName endpoint.\nRequires 'UNum', 'FirstName', and 'LastName' parameters.", code: 250});
+  }
+})
+
+router.post('/updateTitle', util.authCheck(), function(req,res) {
+  if(req.body.UNum && req.body.Title){
+    var unum = typeof req.body.UNum === 'string' ? parseInt(req.body.UNum) : req.body.UNum;
+    var title = req.body.Title;
+    db.updateTitle(unum, title)
+    .then(res. send({"error": "", "code": 200}))
+    .catch((err) => {
+      console.log("Error calling /updateTitle endpoint.");
+      console.log(err);
+      res.send({"error": err, "code": 251})
+    })
+  }
+  else{
+    res.status(403).send({"error": "Invalid paramaters submitted to /updateTitle endpoint.\nRequires 'UNum' and 'Title' parameters.", code: 252});
+  }
+})
+
+router.post('/getUserInfo', util.authCheck(), function(req, res) {
+  if(req.body.UNum){
+    var unum = typeof req.body.UNum === 'string' ? parseInt(req.body.UNum) : req.body.UNum;
+    db.getUserInfo(unum)
+    .then((result) => {
+      console.log(result);
+      res.send({"userInfo": result, "error": "", "code": 200})
+    })
+  }
+  else{
+    res.status(403).send({"error": "Invalid paramaters submitted to /updateTitle endpoint.\nRequires 'UNum' and 'Title' parameters.", code: 253});
   }
 })
 

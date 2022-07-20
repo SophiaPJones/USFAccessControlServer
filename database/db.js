@@ -71,7 +71,8 @@ function getSession(hashedkey, date) {
         })
     })
 }
- function register(UNum, firstName, lastName, hashedpassword, email) {
+
+function register(UNum, firstName, lastName, hashedpassword, email) {
     //registers new admin
     return new Promise((resolve, reject) => {
         pool.query(`INSERT INTO Users(UNum, firstName, lastName) VALUES($1, $2, $3)`,[UNum, firstName, lastName])
@@ -511,6 +512,79 @@ function getScannersAssignedToRoom(RoomNum, Building) {
     })
 }
 
+function updateEmail(UNum, Email) {
+    //updatesAdminEmail
+    return new Promise((resolve, reject) => {
+        pool.query('UPDATE Administrators SET Email = $1 WHERE UNum = $2', [Email, UNum])
+        .then((res) => {
+            resolve();
+        })
+        .catch((err) => {
+            console.log(`Error in db.updateEmail(${Unum, Email})`);
+            console.log(err);
+            reject(err);
+        })
+    })
+}
+
+function updatePassword(UNum, HashedPassword) {
+    //updatesAdmin Password
+    return new Promise((resolve, reject) => {
+        pool.query('UPDATE Administrators SET Password = $1 WHERE UNum = $2', [HashedPassword, UNum])
+        .then((res) => {
+            resolve();
+        })
+        .catch((err) => {
+            console.log(`Error in db.updatePassword(${HashedPassword, Email})`);
+            console.log(err);
+            reject(err);
+        })
+    })
+}
+
+function updateName(UNum, firstName, lastName){
+    return new Promise((resolve, reject) => {
+        pool.query('UPDATE Users SET FirstName = $1, LastName = $2 WHERE UNum = $3', [firstName, lastName, UNum])
+        .then((res) => {
+            resolve();
+        })
+        .catch((err) => {
+            console.log(`Error in db.updateName(${HashedPassword, Email})`);
+            console.log(err);
+            reject(err);
+        })
+    })
+}
+
+ function updateTitle(UNum, title){
+    return new Promise((resolve, reject) => {
+        pool.query('UPDATE Professors SET Title = $1 WHERE UNum = $2', [title, UNum])
+        .then((res) => {
+            resolve();
+        })
+        .catch((err) => {
+            console.log(`Error in db.updateTitle(${HashedPassword, Email})`);
+            console.log(err);
+            reject(err);
+        })
+    })
+}
+
+function getUserInfo(UNum){
+    return new Promise((resolve, reject) => {
+        pool.query('SELECT Users.UNum, Users.FirstName, Users.LastName, Professors.Title, Administrators.Email FROM Users LEFT JOIN Professors ON Users.UNum = Professors.UNum LEFT JOIN Administrators ON Users.UNum = Administrators.UNum WHERE Users.UNum = $1', [UNum])
+        .then((res) => {
+            resolve(res.rows[0]);
+        })
+        .catch((err) => {
+            console.log(`Error in getUserInfo(${UNum})`);
+            console.log(err);
+            reject(err);
+        })
+    })
+}
+
+
 module.exports = {
     login, saveSession,
     register, createUser,
@@ -525,6 +599,8 @@ module.exports = {
     getRooms, getUsers,
     getProfessors, getAdministrators,
     getScanners, getRoomAccessList,
-    getLogForRoom, getScannersAssignedToRoom
-
+    getLogForRoom, getScannersAssignedToRoom,
+    updateEmail, updateName,
+    updatePassword, updateTitle,
+    getUserInfo
 }
